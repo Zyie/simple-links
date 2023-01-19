@@ -1,16 +1,16 @@
-# Simple Link
+# Simple Links
 Provides a simpler way to link local projects together instead of using npm link.
 
 ## Installation
 
 ```sh
-npm install -g simple-link
+npm install -g simple-links
 ```
 
 Alternatively, you can use npx to run the command without installing it globally.
 
 ```sh
-npx simple-link
+npx simple-links
 ```
 
 ## Usage
@@ -27,4 +27,4 @@ sl ../path/to/some-package ./node_modules/some-package -w
 ```
 
 ## Limitations
-Simple link will not copy over `node_modules` therefore if you are working on an unreleased repo, or have added a new module to an existing one, you will run into issues of missing modules.
+Simple links will not copy over `node_modules` therefore if you are working on an unreleased repo, or have added a new module to an existing one, you will run into issues of missing modules.
