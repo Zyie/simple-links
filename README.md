@@ -17,13 +17,19 @@ npx simple-links
 
 There are two aliases for the command, `sl` and `simple-link`.
 
+By default it will search for a `package.json` file to find the name of the package and place it in the `node_modules` directory of the current project.
 ```sh
-sl ../path/to/some-package ./node_modules/some-package
+sl ../path/to/some-package
 ```
 
 You can also watch for changes and it will automatically update the link.
 ```sh
-sl ../path/to/some-package ./node_modules/some-package -w
+sl ../path/to/some-package -w
+```
+
+However if you wish to link any other directory, you can specify the output directory.
+```sh
+sl ../path/to/some-package ./some-folder
 ```
 
 ## Limitations

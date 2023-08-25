@@ -3,12 +3,15 @@ import { Command, Flags } from '@oclif/core';
 import path from 'node:path';
 import fs from 'fs-extra';
 import chalk from 'chalk';
+import { glob } from 'glob-promise';
+import chokidar from 'chokidar';
 
 class Link extends Command
 {
     static description = 'Link two packages together';
 
     static examples = [
+        '<%= config.bin %> ../path/to/package1',
         '<%= config.bin %> ../path/to/package1 ./node_modules/package1',
     ];
 
@@ -18,6 +21,15 @@ class Link extends Command
             description: 'watch for changes',
             default: false,
         }),
+        ignore: Flags.string({
+            char: 'i',
+            description: 'ignore files matching this pattern',
+            default: [
+                '**/node_modules/**/*',
+                '**/.git/**/*',
+            ],
+            multiple: true,
+        }),
         verbose: Flags.boolean({
             char: 'v',
             description: 'output more information',
@@ -25,7 +37,7 @@ class Link extends Command
         }),
     };
 
-    static args = [{ name: 'input' }, { name: 'output' }];
+    static args = [{ name: 'input', required: true }, { name: 'output' }];
 
     async run(): Promise<void>
     {
@@ -33,11 +45,12 @@ class Link extends Command
         const root = path.join(process.cwd());
         let input = args.input;
         let output = args.output;
+        const ignore = flags.ignore;
 
-        if (!input || !output)
+        if (!input)
         {
             this.logEvent({
-                message: 'input and output are required',
+                message: 'input is required',
                 level: 'error',
             });
         }
@@ -47,10 +60,29 @@ class Link extends Command
             input = path.join(root, input);
         }
 
-        if (!path.isAbsolute(output))
+        if (!output)
+        {
+            try
+            {
+            // read the package.json file of the input and get the name of the package
+                const packageJson = fs.readJSONSync(path.join(input, 'package.json'));
+
+                output = `${path.join(root, 'node_modules', packageJson.name)}/`;
+            }
+            catch (error)
+            {
+                this.logEvent({
+                    message: 'Cannot determine package name from package.json, please provide output path',
+                    level: 'error',
+                });
+            }
+        }
+        else if (!path.isAbsolute(output))
         {
             output = path.join(root, output);
         }
+
+        // TODO: if it is a package then we should read the files from the package.json and use them as the input
 
         if (fs.existsSync(input))
         {
@@ -65,7 +97,7 @@ class Link extends Command
 
             try
             {
-                fs.copySync(input, output);
+                this._copy(input, output, ignore);
             }
             catch (error)
             {
@@ -75,7 +107,7 @@ class Link extends Command
             if (flags.watch)
             {
                 this.logEvent({ message: 'Watching for changes...', level: 'info' });
-                fs.watch(input, { recursive: true }, (_type, file) =>
+                chokidar.watch(input, { ignored: ignore }).on('all', (_type, file) =>
                 {
                     // adding check to see if file is null.
                     if (!file || file.includes('.DS_Store')) return;
@@ -88,7 +120,7 @@ class Link extends Command
                             id = -1;
                             try
                             {
-                                fs.copySync(input, output);
+                                this._copy(input, output, ignore);
                                 if (!flags.verbose)
                                 {
                                     this.logEvent({
@@ -153,6 +185,20 @@ class Link extends Command
             default:
                 throw new Error(`Unknown log level ${event.level}`);
         }
+    }
+
+    private _copy(src: string, dest: string, ignore: string[])
+    {
+        const res = glob.sync(`${src}/**/*`, { ignore, nodir: true });
+
+        fs.ensureDirSync(dest);
+        res.forEach((file) =>
+        {
+            const out = file.replace(src, dest);
+
+            fs.mkdirSync(path.dirname(out), { recursive: true });
+            fs.copyFileSync(file, out);
+        });
     }
 }
 
