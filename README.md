@@ -7,12 +7,6 @@ Provides a simpler way to link local projects together instead of using npm link
 npm install -g simple-links
 ```
 
-Alternatively, you can use npx to run the command without installing it globally.
-
-```sh
-npx simple-links
-```
-
 ## Usage
 
 There are two aliases for the command, `sl` and `simple-link`.

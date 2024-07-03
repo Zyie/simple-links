@@ -25,8 +25,23 @@ class Link extends Command
             char: 'i',
             description: 'ignore files matching this pattern',
             default: [
-                '**/node_modules/**/*',
-                '**/.git/**/*',
+                '*.orig',
+                '.*.swp',
+                '.DS_Store',
+                '._*',
+                '.git',
+                '.hg',
+                '.lock-wscript',
+                '.npmrc',
+                '.svn',
+                '.wafpickle-*',
+                'CVS',
+                'config.gypi',
+                'node_modules',
+                'npm-debug.log',
+                'package-lock.json',
+                'pnpm-lock.yaml',
+                'yarn.lock',
             ],
             multiple: true,
         }),
@@ -48,7 +63,6 @@ class Link extends Command
         const root = path.join(process.cwd());
         let input = args.input;
         let output = args.output;
-        const ignore = flags.ignore;
 
         this._flags = flags;
 
@@ -65,25 +79,42 @@ class Link extends Command
             input = path.join(root, input);
         }
 
+        const ignore = flags.ignore.map((pattern) => path.join(input, pattern));
+
         if (!output)
         {
             try
             {
-                // read the package.json file of the input and get the name of the package
                 const packageJson = fs.readJSONSync(path.join(input, 'package.json'));
 
                 output = `${path.join(root, 'node_modules', packageJson.name)}/`;
 
-                // get the package files from the package.json
                 if (packageJson.files)
                 {
-                    this._copyPaths = new Set(packageJson.files.map((file: string) => path.join(input, file)));
-                    this._copyPaths.add('package.json');
-                    this._copyPaths.add('readme.md');
-                    this._copyPaths.add('README.md');
-                    this._copyPaths.add('README');
-                    this._copyPaths.add('license');
-                    this._copyPaths.add('LICENSE');
+                    // Initialize _copyPaths with common files
+                    this._copyPaths = new Set(['package.json', 'readme.md', 'README.md', 'README', 'license', 'LICENSE']);
+
+                    // Expand each glob pattern in packageJson.files and add the resolved paths to _copyPaths
+                    packageJson.files.forEach((filePattern: string) =>
+                    {
+                        const fullPathPattern = path.join(input, filePattern);
+                        const matchedFiles = glob.sync(fullPathPattern); // Exclude directories
+
+                        matchedFiles.forEach((matchedFile) => this._copyPaths.add(matchedFile));
+                    });
+                }
+
+                if (packageJson.main)
+                {
+                    this._copyPaths.add(path.join(input, packageJson.main));
+                }
+
+                if (packageJson.bin)
+                {
+                    for (const key in packageJson.bin)
+                    {
+                        this._copyPaths.add(path.join(input, packageJson.bin[key]));
+                    }
                 }
             }
             catch (error)
@@ -98,8 +129,6 @@ class Link extends Command
         {
             output = path.join(root, output);
         }
-
-        // TODO: if it is a package then we should read the files from the package.json and use them as the input
 
         if (fs.existsSync(input))
         {
@@ -212,7 +241,7 @@ class Link extends Command
     {
         let id: number | NodeJS.Timeout = -1;
 
-        chokidar.watch(input, { ignored: ignore }).on('all', (_type, file) =>
+        chokidar.watch(input, { ignored: ignore, ignoreInitial: true }).on('all', (eventName, file) =>
         {
             // adding check to see if file is null.
             if (!file || file.includes('.DS_Store')) return;
@@ -235,7 +264,7 @@ class Link extends Command
                     {
                         this.logEvent({
                             message: (error as Error).message,
-                            level: 'error',
+                            level: 'warn',
                         });
                     }
                 }, 100);
